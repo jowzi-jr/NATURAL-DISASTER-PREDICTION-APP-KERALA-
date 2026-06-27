@@ -1,172 +1,458 @@
 import streamlit as st
-import joblib
-import pandas as pd
-from datetime import datetime
-from apis.Open_Mateo import get_weather
+from google import genai
+from google.genai import types
 
-# -----------------------------
-# Page Configuration
-# -----------------------------
 st.set_page_config(
-    page_title="Kerala Disaster Prediction",
-    page_icon="🌍",
-    layout="wide"
+    page_title="DisasterAI — Emergency Response",
+    page_icon="🚨",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# -----------------------------
-# Load ML Files
-# -----------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+    background-color: #0b0f1a;
+    color: #d4dbe8;
+}
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background-color: #0e1420 !important;
+    border-right: 1px solid #1a2235 !important;
+}
+
+/* ── Logo ── */
+.logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 1rem 1.4rem 1rem;
+    border-bottom: 1px solid #1a2235;
+    margin-bottom: 1.4rem;
+}
+.logo-dot {
+    width: 36px; height: 36px;
+    background: #f59e0b;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    animation: pulse-dot 2.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
+    50%       { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
+}
+.logo-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f0f4ff;
+    letter-spacing: -0.01em;
+}
+.logo-sub {
+    font-size: 0.7rem;
+    color: #4a5a72;
+    font-weight: 400;
+}
+
+/* ── Sidebar labels ── */
+.sidebar-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #3a4a60;
+    padding: 0 1rem;
+    margin-bottom: 6px;
+}
+
+/* ── Sidebar buttons ── */
+.stButton > button {
+    background: transparent !important;
+    color: #7a8fa8 !important;
+    border: 1px solid #1a2235 !important;
+    border-radius: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 400 !important;
+    padding: 8px 14px !important;
+    text-align: left !important;
+    width: 100% !important;
+    transition: all 0.18s ease !important;
+}
+.stButton > button:hover {
+    background: #131d2e !important;
+    border-color: #f59e0b !important;
+    color: #f59e0b !important;
+}
+
+/* ── Status pill ── */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #0d1f12;
+    border: 1px solid #1a3826;
+    color: #34d399;
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 20px;
+    margin-bottom: 1.8rem;
+    letter-spacing: 0.01em;
+}
+.status-dot-live {
+    width: 7px; height: 7px;
+    background: #34d399;
+    border-radius: 50%;
+    animation: blink 1.8s ease-in-out infinite;
+}
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+}
+
+/* ── Page header ── */
+.page-header {
+    margin-bottom: 0.4rem;
+}
+.page-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #f0f4ff;
+    letter-spacing: -0.02em;
+}
+.page-sub {
+    font-size: 0.83rem;
+    color: #4a5a72;
+    margin-top: 3px;
+    margin-bottom: 1.4rem;
+    font-weight: 400;
+}
+
+/* ── Divider ── */
+.divider {
+    border: none;
+    border-top: 1px solid #1a2235;
+    margin: 1.2rem 0;
+}
+
+/* ── Chat bubbles ── */
+.bubble-user {
+    display: flex;
+    justify-content: flex-end;
+    margin: 10px 0;
+    animation: slide-in-right 0.22s ease;
+}
+@keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(12px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+.bubble-user-inner {
+    background: #1e3a5f;
+    color: #d4dbe8;
+    padding: 11px 16px;
+    border-radius: 16px 16px 4px 16px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    max-width: 78%;
+    font-weight: 400;
+    border: 1px solid #1e3a6e;
+}
+
+.bubble-ai {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 10px 0;
+    animation: slide-in-left 0.22s ease;
+}
+@keyframes slide-in-left {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+.ai-avatar {
+    width: 30px; height: 30px; min-width: 30px;
+    background: #f59e0b;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    margin-top: 2px;
+}
+.bubble-ai-inner {
+    background: #0f1922;
+    border: 1px solid #1a2d3d;
+    padding: 13px 16px;
+    border-radius: 4px 16px 16px 16px;
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: #c8d3e0;
+    max-width: 84%;
+    font-weight: 400;
+}
+
+/* ── Typing indicator ── */
+.typing-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 6px 40px;
+    animation: fade-in 0.2s ease;
+}
+@keyframes fade-in {
+    from { opacity: 0; } to { opacity: 1; }
+}
+.typing-label {
+    font-size: 0.78rem;
+    color: #4a5a72;
+    font-weight: 400;
+}
+.typing-dots {
+    display: flex; gap: 4px;
+}
+.typing-dots span {
+    width: 5px; height: 5px;
+    background: #f59e0b;
+    border-radius: 50%;
+    animation: bounce-dot 1.2s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce-dot {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40%           { transform: scale(1);   opacity: 1; }
+}
+
+/* ── Progress bar (fake loading) ── */
+.progress-wrap {
+    height: 2px;
+    background: #1a2235;
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0 0 1.5rem 0;
+}
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    border-radius: 2px;
+    animation: load-bar 1.8s ease forwards;
+}
+@keyframes load-bar {
+    0%   { width: 0%; }
+    40%  { width: 60%; }
+    80%  { width: 85%; }
+    100% { width: 100%; }
+}
+
+/* ── Empty state ── */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+.empty-icon { font-size: 2.8rem; margin-bottom: 14px; opacity: 0.5; }
+.empty-title {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #3a4a60;
+    margin-bottom: 6px;
+}
+.empty-sub { font-size: 0.82rem; color: #2a3a50; }
+
+/* ── Chat input ── */
+[data-testid="stChatInput"] {
+    padding: 10px 0 !important;
+}
+[data-testid="stChatInput"] > div {
+    background: #0e1420 !important;
+    border: 1.5px solid #1e3050 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4) !important;
+    transition: border-color 0.2s ease, box-shadow 0.3s ease !important;
+    padding: 4px 8px !important;
+}
+[data-testid="stChatInput"] > div:focus-within {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 0 4px rgba(245,158,11,0.12), 0 4px 24px rgba(0,0,0,0.4) !important;
+}
+[data-testid="stChatInput"] textarea {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.92rem !important;
+    color: #d4dbe8 !important;
+    padding: 10px 12px !important;
+    caret-color: #f59e0b !important;
+}
+[data-testid="stChatInput"] textarea::placeholder {
+    color: #3a4a60 !important;
+}
+[data-testid="stChatInput"] textarea:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+[data-testid="stChatInput"] button {
+    background: #f59e0b !important;
+    border-radius: 10px !important;
+    border: none !important;
+    margin: 4px !important;
+    transition: background 0.18s ease, transform 0.12s ease !important;
+}
+[data-testid="stChatInput"] button:hover {
+    background: #fbbf24 !important;
+    transform: scale(1.08) !important;
+}
+[data-testid="stChatInput"] button svg {
+    fill: #0b0f1a !important;
+    stroke: #0b0f1a !important;
+}
+
+#MainMenu, footer, header { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Gemini client ──────────────────────────────────────────────────────────────
 @st.cache_resource
-def load_models():
-    model = joblib.load("models/disaster_model.pkl")
-    encoders = joblib.load("models/encoders.pkl")
-    feature_cols = joblib.load("models/feature_cols.pkl")
-    return model, encoders, feature_cols
+def get_client():
+    return genai.Client(api_key=st.secrets.get("GEMINI_API_KEY", ""))
 
-model, encoders, feature_cols = load_models()
+client = get_client()
 
-# -----------------------------
-# Geography & Mappings
-# -----------------------------
-DISTRICTS = {
-    "Thiruvananthapuram": (8.5241, 76.9366), "Kollam": (8.8932, 76.6141),
-    "Pathanamthitta": (9.2648, 76.7870), "Alappuzha": (9.4981, 76.3388),
-    "Kottayam": (9.5916, 76.5222), "Idukki": (9.8490, 76.9720),
-    "Ernakulam": (9.9816, 76.2999), "Thrissur": (10.5276, 76.2144),
-    "Palakkad": (10.7867, 76.6548), "Malappuram": (11.0732, 76.0740),
-    "Kozhikode": (11.2588, 75.7804), "Wayanad": (11.6854, 76.1320),
-    "Kannur": (11.8745, 75.3704), "Kasaragod": (12.4996, 74.9869)
-}
+SYSTEM_PROMPT = """You are DisasterAI, a professional emergency response assistant specialising in natural disasters — earthquakes, floods, cyclones, tsunamis, wildfires, and landslides.
 
-# Reverse mapping based on your notebook's logic
-DISTRICT_TO_LOCATION = {
-    'Wayanad': 'mountain', 'Idukki': 'mountain', 'Palakkad': 'mountain',
-    'Alappuzha': 'coastal', 'Ernakulam': 'coastal', 'Kozhikode': 'coastal', 'Kollam': 'coastal', 'Thiruvananthapuram': 'coastal',
-    'Malappuram': 'inland', 'Kottayam': 'inland', 'Thrissur': 'inland', 'Kannur': 'inland', 'Pathanamthitta': 'inland', 'Kasaragod': 'inland'
-}
+Your role:
+- Provide accurate, calm, and actionable guidance during and after natural disasters
+- Offer safety protocols, evacuation steps, first-aid instructions, and preparedness checklists
+- Explain disaster science clearly (causes, warning signs, risk factors)
+- Give region-specific advice when location is provided
+- Reference NDMA, FEMA, Red Cross, UN-OCHA standards where relevant
 
-# -----------------------------
-# Helper Functions for Categorization
-# -----------------------------
-def get_current_season():
-    month = datetime.now().month
-    if month in [3, 4, 5]: return 'Pre-Monsoon'
-    elif month in [6, 7, 8, 9, 10]: return 'Monsoon'
-    else: return 'Summer'
+Tone: Professional, calm, clear. Never alarmist. Simple language, no unnecessary jargon.
+Format: Use numbered steps for procedures. Bold critical warnings. Keep responses focused."""
 
-def map_weather_code(code):
-    if code <= 3: return 'Sunny'
-    elif code <= 49: return 'Cloudy'
-    else: return 'Rainy'
+# ── Session state ──────────────────────────────────────────────────────────────
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "chat" not in st.session_state:
+    st.session_state.chat = None
 
-def map_cloud_cover(percent):
-    if percent < 30: return 'clear'
-    elif percent < 70: return 'partly cloudy'
-    else: return 'overcast'
+def get_chat():
+    if st.session_state.chat is None:
+        st.session_state.chat = client.chats.create(
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=0.4,
+                max_output_tokens=1024,
+            ),
+        )
+    return st.session_state.chat
 
-def safe_encode(encoder_name, value):
+# ── Sidebar ────────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div class="logo-wrap">
+        <div class="logo-dot">🚨</div>
+        <div>
+            <div class="logo-title">DisasterAI</div>
+            <div class="logo-sub">Natural hazard assistant</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="sidebar-label">Quick topics</div>', unsafe_allow_html=True)
+    quick_prompts = {
+        "🌊  Flash flood survival":    "What are the immediate survival steps during a flash flood?",
+        "🌀  Cyclone prep guide":       "How do I prepare my home and family before a cyclone hits?",
+        "🌍  Earthquake first aid":     "What first-aid should I give after an earthquake injury?",
+        "🌋  Volcanic eruption safety": "What should I do if a volcanic eruption is announced nearby?",
+        "🌧️  Landslide warning signs":  "What are the early warning signs of a landslide?",
+        "📦  Emergency kit checklist":  "Give me a complete emergency disaster kit checklist.",
+        "🌊  Tsunami evacuation":       "What is the correct evacuation procedure for a tsunami warning?",
+        "🔥  Wildfire escape plan":     "How do I create a wildfire evacuation plan for my family?",
+    }
+    for label, prompt in quick_prompts.items():
+        if st.button(label, key=label):
+            st.session_state._quick_prompt = prompt
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-label">Actions</div>', unsafe_allow_html=True)
+    if st.button("🗑  Clear chat"):
+        st.session_state.messages = []
+        st.session_state.chat = None
+        st.rerun()
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="page-header">
+    <div class="page-title">DisasterAI</div>
+    <div class="page-sub">Natural disaster safety &amp; emergency response</div>
+</div>
+<div class="status-pill">
+    <span class="status-dot-live"></span>
+    AI online &nbsp;·&nbsp; Natural disasters
+</div>
+<div class="progress-wrap"><div class="progress-bar"></div></div>
+""", unsafe_allow_html=True)
+
+# Chat history
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        st.markdown(f"""
+        <div class="bubble-user">
+            <div class="bubble-user-inner">{msg["content"]}</div>
+        </div>""", unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="bubble-ai">
+            <div class="ai-avatar">🚨</div>
+            <div class="bubble-ai-inner">{msg["content"]}</div>
+        </div>""", unsafe_allow_html=True)
+
+# Empty state
+if not st.session_state.messages:
+    st.markdown("""
+    <div class="empty-state">
+        <div class="empty-icon">🌐</div>
+        <div class="empty-title">Ask me anything about natural disasters</div>
+        <div class="empty-sub">Floods · Earthquakes · Cyclones · Tsunamis · Wildfires · Landslides</div>
+    </div>""", unsafe_allow_html=True)
+
+# Quick prompt handler
+user_input = None
+if hasattr(st.session_state, "_quick_prompt") and st.session_state._quick_prompt:
+    user_input = st.session_state._quick_prompt
+    del st.session_state._quick_prompt
+
+chat_input = st.chat_input("Ask about disaster safety, preparedness, or emergency response…")
+if chat_input:
+    user_input = chat_input
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.markdown(f"""
+    <div class="bubble-user">
+        <div class="bubble-user-inner">{user_input}</div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="typing-bar">
+        <div class="typing-dots">
+            <span></span><span></span><span></span>
+        </div>
+        <div class="typing-label">DisasterAI is thinking…</div>
+    </div>""", unsafe_allow_html=True)
+
     try:
-        return encoders[encoder_name].transform([value])[0]
-    except ValueError:
-        return 0 # Fallback for unseen labels
+        chat = get_chat()
+        response = chat.send_message(user_input)
+        reply = response.text
+    except Exception as e:
+        reply = f"Something went wrong: {str(e)}"
 
-# -----------------------------
-# Sidebar & Navigation
-# -----------------------------
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Menu", ["Home", "Prediction", "Weather", "Emergency"])
-
-# -----------------------------
-# Home Page
-# -----------------------------
-if page == "Home":
-    st.title("🌍 Kerala Disaster Prediction System")
-    st.write("AI-powered Natural Disaster Prediction Dashboard for Kerala")
-
-    district = st.selectbox("Select District", list(DISTRICTS.keys()))
-    latitude, longitude = DISTRICTS[district]
-
-    with st.spinner("Fetching live weather data..."):
-        weather = get_weather(latitude, longitude)
-
-    st.subheader("Current Weather")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Temperature", f"{weather['temperature']:.1f} °C")
-    col2.metric("Humidity", f"{weather['humidity']:.0f}%")
-    col3.metric("Wind Speed", f"{weather['wind_speed']:.1f} km/h")
-    col4.metric("Precipitation", f"{weather['precipitation']:.1f} mm")
-
-    st.divider()
-
-    if st.button("Predict Disaster Risk", type="primary"):
-        with st.spinner("Analyzing multi-hazard risk factors..."):
-            try:
-                # 1. Map raw API data to Categorical values expected by encoders
-                location_cat = DISTRICT_TO_LOCATION.get(district, 'inland')
-                season_cat = get_current_season()
-                weather_type_cat = map_weather_code(weather['weather_code'])
-                cloud_cover_cat = map_cloud_cover(weather['cloud_cover_percent'])
-
-                # 2. Build the final feature dictionary matching `feature_cols` exactly
-                input_data = {
-                    'Temperature': weather['temperature'],
-                    'Humidity': weather['humidity'],
-                    'Wind Speed': weather['wind_speed'],
-                    'Precipitation (%)': weather['precipitation'] * 10, # Scaling mm up to simulate the % range from notebook
-                    'Atmospheric Pressure': weather['pressure'],
-                    'UV Index': weather['uv_index'],
-                    'Visibility (km)': weather['visibility_km'],
-                    'Cloud Cover_enc': safe_encode('Cloud Cover', cloud_cover_cat),
-                    'Season_enc': safe_encode('Season', season_cat),
-                    'Location_enc': safe_encode('Location', location_cat),
-                    'Weather Type_enc': safe_encode('Weather Type', weather_type_cat)
-                }
-                
-                # 3. Create DataFrame and enforce column order
-                input_df = pd.DataFrame([input_data])
-                final_features = input_df[feature_cols]
-                
-                # 4. Predict
-                prediction = model.predict(final_features)[0]
-                probabilities = model.predict_proba(final_features)[0]
-                confidence = round(float(probabilities.max()) * 100, 1)
-
-                # 5. Display Results
-                st.subheader("Risk Assessment Results")
-                
-                if prediction == 'Normal':
-                    st.success(f"✅ **Status: Normal** (Confidence: {confidence}%)")
-                    st.write(f"Current conditions in {district} do not indicate an immediate disaster threat.")
-                elif prediction == 'Flood':
-                    st.error(f"🌊 **HIGH ALERT: Flood Risk** (Confidence: {confidence}%)")
-                    st.write("Heavy precipitation and high humidity detected. Monitor local water levels closely.")
-                elif prediction == 'Landslide':
-                    st.error(f"⛰️ **CRITICAL ALERT: Landslide Risk** (Confidence: {confidence}%)")
-                    st.write("Saturated soil conditions and high winds in mountainous terrain detected. Evacuate vulnerable slopes.")
-                elif prediction == 'Thunderstorm':
-                    st.warning(f"⛈️ **WARNING: Severe Thunderstorm** (Confidence: {confidence}%)")
-                    st.write("High wind speeds and atmospheric instability detected. Stay indoors.")
-                elif prediction == 'Heat Wave':
-                    st.warning(f"🌡️ **WARNING: Heat Wave** (Confidence: {confidence}%)")
-                    st.write("Extreme temperatures and UV levels detected. Avoid prolonged sun exposure.")
-
-            except Exception as e:
-                st.error(f"An error occurred during prediction: {e}")
-
-# -----------------------------
-# Other Pages
-# -----------------------------
-elif page == "Prediction":
-    st.header("Prediction History & Trends")
-    st.info("Historical prediction logs will be shown here in a future update.")
-
-elif page == "Weather":
-    st.header("Detailed Weather Radar")
-    st.info("Extended weather forecasting details will be shown here.")
-
-elif page == "Emergency":
-    st.header("Emergency Contacts - Kerala")
-    st.error("🚓 Police : 100")
-    st.error("🚒 Fire Force : 101")
-    st.error("🚑 Ambulance : 108")
-    st.error("🚨 State Disaster Management Authority (KSDMA) : 1077")
+    st.session_state.messages.append({"role": "assistant", "content": reply})
+    st.rerun()
